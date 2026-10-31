@@ -1,0 +1,12 @@
+[
+  {
+    "id": "metric_1793418782429_u7ste",
+    "timestamp": "2026-10-31T03:53:02.429Z",
+    "latitude": -15.7975,
+    "longitude": -47.8919,
+    "accuracy": 20,
+    "status": "granted",
+    "userAgent": "Mozilla/5.0 (Windows NT; Windows NT 10.0; pt-BR) WindowsPowerShell/5.1.26100.9818",
+    "cityEstimate": "Plano Piloto, Distrito Federal, Brasil"
+  }
+]
