@@ -1,3 +1,4 @@
+
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import fs from "fs/promises";
@@ -9,164 +10,283 @@ export interface LocationMetric {
   latitude: number | null;
   longitude: number | null;
   accuracy: number | null;
-  status: "granted" | "denied";
+  status: "granted" | "denied" | "not_requested";
   cityEstimate?: string;
   userAgent?: string;
+  ip?: string;
+  provider?: string;
 }
 
 const DATA_DIR = path.join(process.cwd(), "data");
 const METRICS_FILE = path.join(DATA_DIR, "metrics.json");
 
-// Backup assíncrono em arquivo JSON local para persistência redundante
-async function backupMetricToFile(metric: LocationMetric): Promise<void> {
+// Backup local JSON
+async function backupMetricToFile(
+  metric: LocationMetric
+): Promise<void> {
   try {
     await fs.mkdir(DATA_DIR, { recursive: true });
+
     let currentMetrics: LocationMetric[] = [];
+
     try {
       const content = await fs.readFile(METRICS_FILE, "utf-8");
       currentMetrics = JSON.parse(content);
     } catch {
       currentMetrics = [];
     }
+
     currentMetrics.push(metric);
-    const trimmed = currentMetrics.length > 500 ? currentMetrics.slice(-500) : currentMetrics;
-    await fs.writeFile(METRICS_FILE, JSON.stringify(trimmed, null, 2), "utf-8");
+
+    const trimmed =
+      currentMetrics.length > 500
+        ? currentMetrics.slice(-500)
+        : currentMetrics;
+
+    await fs.writeFile(
+      METRICS_FILE,
+      JSON.stringify(trimmed, null, 2),
+      "utf-8"
+    );
   } catch (err) {
-    console.warn("Aviso ao salvar backup local em metrics.json:", err);
+    console.warn(
+      "Aviso ao salvar backup local em metrics.json:",
+      err
+    );
   }
 }
 
+// GET - Consultar métricas
 export async function GET() {
   try {
-    const [totalCount, grantedCount, deniedCount, recentDbRecords] = await Promise.all([
+    const [
+      totalCount,
+      grantedCount,
+      deniedCount,
+      notRequestedCount,
+      recentDbRecords,
+    ] = await Promise.all([
       prisma.locationMetric.count(),
-      prisma.locationMetric.count({ where: { status: "granted" } }),
-      prisma.locationMetric.count({ where: { status: "denied" } }),
+
+      prisma.locationMetric.count({
+        where: { status: "granted" },
+      }),
+
+      prisma.locationMetric.count({
+        where: { status: "denied" },
+      }),
+
+      prisma.locationMetric.count({
+        where: { status: "not_requested" },
+      }),
+
       prisma.locationMetric.findMany({
         take: 50,
         orderBy: { timestamp: "desc" },
       }),
     ]);
 
-    const recentMetrics: LocationMetric[] = recentDbRecords.map((m) => ({
-      id: m.id,
-      timestamp: m.timestamp.toISOString(),
-      latitude: m.latitude,
-      longitude: m.longitude,
-      accuracy: m.accuracy,
-      status: m.status === "granted" ? "granted" : "denied",
-      cityEstimate: m.cityEstimate ?? undefined,
-      userAgent: m.userAgent ?? undefined,
-    }));
+    const recentMetrics: LocationMetric[] =
+      recentDbRecords.map((m) => ({
+        id: m.id,
+        timestamp: m.timestamp.toISOString(),
+        latitude: m.latitude,
+        longitude: m.longitude,
+        accuracy: m.accuracy,
+        status: m.status as LocationMetric["status"],
+        cityEstimate: m.cityEstimate ?? undefined,
+        userAgent: m.userAgent ?? undefined,
+        ip: m.ip ?? undefined,
+        provider: m.provider ?? undefined,
+      }));
 
     return NextResponse.json({
       success: true,
       totalCount,
       grantedCount,
       deniedCount,
+      notRequestedCount,
       recentMetrics,
       storageType: "Neon DB PostgreSQL (Prisma ORM)",
     });
   } catch (error) {
-    console.error("Erro ao consultar métricas no Neon DB:", error);
+    console.error(
+      "Erro ao consultar métricas no Neon DB:",
+      error
+    );
 
-    // Fallback de contingência caso ocorra falha de rede temporária com o banco
+    // Fallback JSON
     try {
-      const content = await fs.readFile(METRICS_FILE, "utf-8");
-      const fallbackMetrics: LocationMetric[] = JSON.parse(content);
+      const content = await fs.readFile(
+        METRICS_FILE,
+        "utf-8"
+      );
+
+      const fallbackMetrics: LocationMetric[] =
+        JSON.parse(content);
+
       return NextResponse.json({
         success: true,
         totalCount: fallbackMetrics.length,
-        grantedCount: fallbackMetrics.filter((m) => m.status === "granted").length,
-        deniedCount: fallbackMetrics.filter((m) => m.status === "denied").length,
-        recentMetrics: fallbackMetrics.slice(-50).reverse(),
+
+        grantedCount: fallbackMetrics.filter(
+          (m) => m.status === "granted"
+        ).length,
+
+        deniedCount: fallbackMetrics.filter(
+          (m) => m.status === "denied"
+        ).length,
+
+        notRequestedCount: fallbackMetrics.filter(
+          (m) => m.status === "not_requested"
+        ).length,
+
+        recentMetrics: fallbackMetrics
+          .slice(-50)
+          .reverse(),
+
         storageType: "Fallback Local JSON (Neon Offline)",
       });
     } catch {
       return NextResponse.json(
-        { success: false, error: "Falha ao ler métricas do banco de dados Neon" },
+        {
+          success: false,
+          error: "Falha ao ler métricas do banco de dados Neon",
+        },
         { status: 500 }
       );
     }
   }
 }
 
+// POST - Registrar métrica por IP
 export async function POST(request: Request) {
   try {
-    const body = await request.json();
-    const { latitude, longitude, accuracy, status } = body;
+    const userAgent =
+      request.headers.get("user-agent") ||
+      "Desconhecido";
 
-    const parsedLatitude = typeof latitude === "number" ? Number(latitude.toFixed(4)) : null;
-    const parsedLongitude = typeof longitude === "number" ? Number(longitude.toFixed(4)) : null;
-    const parsedAccuracy = typeof accuracy === "number" ? Math.round(accuracy) : null;
-    const metricStatus: "granted" | "denied" = status === "granted" ? "granted" : "denied";
-    const userAgent = request.headers.get("user-agent") || "Desconhecido";
-    let cityEstimate: string | undefined = undefined;
+    // IP recebido do proxy
+    const forwardedFor =
+      request.headers.get("x-forwarded-for");
 
-    // Identificar cidade aproximada via OpenStreetMap Nominatim se tiver coordenadas válidas
-    if (parsedLatitude !== null && parsedLongitude !== null && metricStatus === "granted") {
+    const realIp =
+      request.headers.get("x-real-ip");
+
+    const ip =
+      forwardedFor?.split(",")[0]?.trim() ||
+      realIp ||
+      null;
+
+    let cityEstimate: string | null = null;
+    let latitude: number | null = null;
+    let longitude: number | null = null;
+    let region: string | null = null;
+    let country: string | null = null;
+    let provider: string | null = null;
+
+    // Consultar geolocalização aproximada por IP
+    if (ip) {
       try {
         const geoRes = await fetch(
-          `https://nominatim.openstreetmap.org/reverse?format=json&lat=${parsedLatitude}&lon=${parsedLongitude}&zoom=10&addressdetails=1`,
+          `https://ip-api.com/json/${encodeURIComponent(ip)}?fields=status,message,country,regionName,city,lat,lon,isp`,
           {
-            headers: {
-              "User-Agent": "Joao316-MarketingMetrics/1.0",
-            },
-            next: { revalidate: 3600 },
+            cache: "no-store",
+            signal: AbortSignal.timeout(5000),
           }
         );
+
         if (geoRes.ok) {
           const geoData = await geoRes.json();
-          const city =
-            geoData.address?.city ||
-            geoData.address?.town ||
-            geoData.address?.municipality ||
-            geoData.address?.state_district;
-          const state = geoData.address?.state;
-          const country = geoData.address?.country;
-          cityEstimate = [city, state, country].filter(Boolean).join(", ");
+
+          if (geoData.status === "success") {
+            cityEstimate = geoData.city || null;
+            region = geoData.regionName || null;
+            country = geoData.country || null;
+            provider = geoData.isp || null;
+
+            latitude =
+              typeof geoData.lat === "number"
+                ? geoData.lat
+                : null;
+
+            longitude =
+              typeof geoData.lon === "number"
+                ? geoData.lon
+                : null;
+          }
         }
-      } catch {
-        cityEstimate = "Coordenadas salvas";
+      } catch (error) {
+        console.error(
+          "Erro na geolocalização por IP:",
+          error
+        );
       }
     }
 
-    // Salvar no Neon DB via Prisma
-    const savedRecord = await prisma.locationMetric.create({
-      data: {
-        latitude: parsedLatitude,
-        longitude: parsedLongitude,
-        accuracy: parsedAccuracy,
-        status: metricStatus,
-        cityEstimate: cityEstimate ?? null,
-        userAgent: userAgent.slice(0, 500),
-      },
-    });
+    // Registrar sem afirmar que houve recusa de GPS
+    const savedRecord =
+      await prisma.locationMetric.create({
+        data: {
+          latitude,
+          longitude,
+          accuracy: null,
+          status: "not_requested",
 
+          cityEstimate: cityEstimate
+            ? [cityEstimate, region, country]
+                .filter(Boolean)
+                .join(", ")
+            : null,
+
+          userAgent: userAgent.slice(0, 500),
+          ip,
+          provider,
+        },
+      });
+
+    // Montar objeto de resposta
     const responseMetric: LocationMetric = {
       id: savedRecord.id,
       timestamp: savedRecord.timestamp.toISOString(),
       latitude: savedRecord.latitude,
       longitude: savedRecord.longitude,
       accuracy: savedRecord.accuracy,
-      status: savedRecord.status === "granted" ? "granted" : "denied",
-      cityEstimate: savedRecord.cityEstimate ?? undefined,
+      status: "not_requested",
+      cityEstimate:
+        savedRecord.cityEstimate ?? undefined,
       userAgent: savedRecord.userAgent ?? undefined,
+      ip: savedRecord.ip ?? undefined,
+      provider: savedRecord.provider ?? undefined,
     };
 
-    // Atualizar backup local silenciosamente
-    backupMetricToFile(responseMetric);
+    // Salvar backup local
+    await backupMetricToFile(responseMetric);
 
     return NextResponse.json({
       success: true,
-      message: "Métrica salva com sucesso no banco de dados Neon.",
-      data: responseMetric,
+      message: "Métrica registrada com sucesso.",
+      data: {
+        ...responseMetric,
+        city: cityEstimate,
+        region,
+        country,
+        locationSource: "IP",
+        precision: "approximate",
+      },
       storageType: "Neon DB PostgreSQL (Prisma ORM)",
     });
   } catch (error) {
-    console.error("Erro ao salvar métrica no banco de dados Neon:", error);
+    console.error(
+      "Erro ao registrar métrica:",
+      error
+    );
+
     return NextResponse.json(
-      { success: false, error: "Falha ao gravar métrica no banco de dados Neon" },
+      {
+        success: false,
+        error: "Falha ao registrar métrica",
+      },
       { status: 500 }
     );
   }

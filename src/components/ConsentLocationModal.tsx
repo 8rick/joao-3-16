@@ -41,75 +41,34 @@ export default function ConsentLocationModal({ onOpenDashboard }: ConsentLocatio
     }
   }, []);
 
-  const handleGrant = () => {
-    if (!navigator.geolocation) {
-      setStatus("denied");
-      localStorage.setItem("joao316_location_consent", "unsupported");
-      return;
-    }
 
+  const handleGrant = async () => {
+    try {
+      const res = await fetch("/api/analytics/location", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({}),
+      });
 
-    navigator.geolocation.getCurrentPosition(
-      async (position) => {
-        const { latitude, longitude, accuracy } = position.coords;
-        setStatus("granted");
-        localStorage.setItem("joao316_location_consent", "granted");
+      const result = await res.json();
 
-        // Enviar para o endpoint de métricas de marketing
-        try {
-          const res = await fetch("/api/analytics/location", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              latitude,
-              longitude,
-              accuracy,
-              status: "granted"
-            })
-          });
-          const data = await res.json();
-          const cityEstimate = data.data?.cityEstimate || "Localização identificada";
-          const info = { latitude, longitude, city: cityEstimate };
-          setLocationInfo(info);
-          localStorage.setItem("joao316_user_location_info", JSON.stringify(info));
-        } catch {
-          const info = { latitude, longitude, city: "Região Registrada" };
-          setLocationInfo(info);
-        }
-
-        // Auto fechar após alguns segundos de confirmação
-        setTimeout(() => {
-          setShowBanner(false);
-        }, 3500);
-      },
-      async (error) => {
-        console.warn("Permissão de geolocalização negada pelo usuário:", error.message);
-        setStatus("denied");
-        localStorage.setItem("joao316_location_consent", "denied");
-        // Registrar métrica de recusa para controle de conversão de consentimento (sem dados pessoais)
-        try {
-          await fetch("/api/analytics/location", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              status: "denied"
-            })
-          });
-        } catch {
-          // ignore error
-        }
-
-        setTimeout(() => {
-          setShowBanner(false);
-        }, 3000);
-      },
-      {
-        enableHighAccuracy: false,
-        timeout: 10000,
-        maximumAge: 60000
+      if (result.success) {
+        setLocationInfo({
+          latitude: result.data.latitude,
+          longitude: result.data.longitude,
+          city: result.data.city
+            ? `${result.data.city}, ${result.data.region || ""}`
+            : "Localização aproximada indisponível",
+        });
+        setShowBanner(false);
       }
-    );
+    } catch (error) {
+      console.error("Erro ao registrar localização:", error);
+    }
   };
+
 
   const handleDeny = async () => {
     setStatus("denied");
@@ -163,17 +122,16 @@ export default function ConsentLocationModal({ onOpenDashboard }: ConsentLocatio
             </div>
 
             <p className="text-sm text-slate-300 leading-relaxed mb-4">
-             <span>Ajude-nos a tornar sua experiência mais relevante.</span>
+              <span>Ajude-nos a tornar sua experiência mais relevante.</span>
             </p>
             {feedbackMessage && (
               <div
-                className={`mb-4 p-3 rounded-lg text-xs flex items-center gap-2 ${
-                  status === "granted"
+                className={`mb-4 p-3 rounded-lg text-xs flex items-center gap-2 ${status === "granted"
                     ? "bg-emerald-950/60 border border-emerald-500/40 text-emerald-300"
                     : status === "requesting"
-                    ? "bg-amber-950/60 border border-amber-500/40 text-amber-200"
-                    : "bg-slate-800 border border-slate-700 text-slate-300"
-                }`}
+                      ? "bg-amber-950/60 border border-amber-500/40 text-amber-200"
+                      : "bg-slate-800 border border-slate-700 text-slate-300"
+                  }`}
               >
                 {status === "granted" ? (
                   <CheckCircle2 className="w-4 h-4 shrink-0 text-emerald-400" />
@@ -204,8 +162,8 @@ export default function ConsentLocationModal({ onOpenDashboard }: ConsentLocatio
                 {status === "requesting"
                   ? "Solicitando..."
                   : status === "granted"
-                  ? "Autorizado!"
-                  : "Aceitar Cookies"}
+                    ? "Autorizado!"
+                    : "Aceitar Cookies"}
               </button>
             </div>
           </div>

@@ -18,5 +18,25 @@
     "status": "granted",
     "cityEstimate": "Carnaubal, Ceará, Brasil",
     "userAgent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:153.0) Gecko/20100101 Firefox/153.0"
+  },
+  {
+    "id": "cmvwdse1p0000hwi7e100tg3w",
+    "timestamp": "2026-10-31T12:32:19.741Z",
+    "latitude": null,
+    "longitude": null,
+    "accuracy": null,
+    "status": "not_requested",
+    "userAgent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:153.0) Gecko/20100101 Firefox/153.0",
+    "ip": "::ffff:127.0.0.1"
+  },
+  {
+    "id": "cmvwdwfbf0001hwi7ismko6oh",
+    "timestamp": "2026-10-31T12:35:28.011Z",
+    "latitude": null,
+    "longitude": null,
+    "accuracy": null,
+    "status": "not_requested",
+    "userAgent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:153.0) Gecko/20100101 Firefox/153.0",
+    "ip": "::ffff:127.0.0.1"
   }
 ]
