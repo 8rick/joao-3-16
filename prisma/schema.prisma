@@ -1,0 +1,25 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+model LocationMetric {
+  id           String   @id @default(cuid())
+  timestamp    DateTime @default(now())
+  latitude     Float?
+  longitude    Float?
+  accuracy     Float?
+  status       String   // "granted" | "denied"
+  cityEstimate String?
+  userAgent    String?
+  createdAt    DateTime @default(now())
+
+  @@map("location_metrics")
+}

@@ -10,7 +10,8 @@ import {
   BarChart,
   Shield,
   Clock,
-  Navigation
+  Navigation,
+  Database
 } from "lucide-react";
 import type { LocationMetric } from "../app/api/analytics/location/route";
 
@@ -27,6 +28,7 @@ export default function MarketingDashboardModal({
   const [total, setTotal] = useState<number>(0);
   const [granted, setGranted] = useState<number>(0);
   const [denied, setDenied] = useState<number>(0);
+  const [storageType, setStorageType] = useState<string>("");
   const [isLoading, setIsLoading] = useState<boolean>(false);
 
   const fetchMetrics = async () => {
@@ -39,6 +41,9 @@ export default function MarketingDashboardModal({
         setTotal(data.totalCount || 0);
         setGranted(data.grantedCount || 0);
         setDenied(data.deniedCount || 0);
+        if (data.storageType) {
+          setStorageType(data.storageType);
+        }
       }
     } catch (error) {
       console.error("Erro ao carregar métricas de marketing:", error);
@@ -67,9 +72,17 @@ export default function MarketingDashboardModal({
               <BarChart className="w-5 h-5" />
             </div>
             <div>
-              <h2 className="font-serif-title text-xl font-bold text-amber-200">
-                Painel de Controle de Marketing
-              </h2>
+              <div className="flex items-center gap-2">
+                <h2 className="font-serif-title text-xl font-bold text-amber-200">
+                  Painel de Controle de Marketing
+                </h2>
+                {storageType && (
+                  <span className="hidden sm:inline-flex items-center gap-1 text-[11px] text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded-full border border-emerald-500/20 font-medium">
+                    <Database className="w-3 h-3 text-emerald-400" />
+                    {storageType}
+                  </span>
+                )}
+              </div>
               <p className="text-xs text-slate-400">
                 Métricas de alcance regional e consentimento em tempo real
               </p>

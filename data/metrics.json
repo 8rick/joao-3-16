@@ -8,5 +8,15 @@
     "status": "granted",
     "userAgent": "Mozilla/5.0 (Windows NT; Windows NT 10.0; pt-BR) WindowsPowerShell/5.1.26100.9818",
     "cityEstimate": "Plano Piloto, Distrito Federal, Brasil"
+  },
+  {
+    "id": "cmvvwl0by00001ki70co0za3d",
+    "timestamp": "2026-10-31T04:30:41.902Z",
+    "latitude": -4.1665,
+    "longitude": -40.9485,
+    "accuracy": 148,
+    "status": "granted",
+    "cityEstimate": "Carnaubal, Ceará, Brasil",
+    "userAgent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:153.0) Gecko/20100101 Firefox/153.0"
   }
 ]
